@@ -2,11 +2,12 @@
 
 # Globals Start
 option=$1
+configFilePath=$2
 myDir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 commonPP="$myDir/common.pp"
 modulesDir="$myDir/../puppet/modules"
 manifestsDir="$myDir"
-vmPropertiesFile="$myDir/.testvm.properties"
+# vmPropertiesFile="$myDir/.testvm.properties"
 # Globals End
 
 # Functions Start
@@ -72,13 +73,13 @@ usage(){
   echo "**** HELP ****"
   echo "1) Make sure you are in vagrant-vm folder"
   echo ""
-  echo "2) Run: <source bootstap.sh init /path/to/image.box /path/to/configuration.pp>"
+  echo "2) Run: <source run.sh init /path/to/image.box /path/to/configuration.pp>"
   echo "      This creates Vagrantfile and initiates vagrant"
   echo "      \`source\` causes vagrant command to be overridden to reload config file"
   echo ""
   echo "3) Execute vagrant up/halt/reload/package to test your changes"
   echo ""
-  echo "4) Run: <sh bootstrap.sh clear> to delete extra created files and destroy vagrant"
+  echo "4) Run: <sh run.sh clear> to delete extra created files and destroy vagrant"
 }
 
 vagrant(){
