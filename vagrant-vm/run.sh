@@ -7,8 +7,7 @@ myDir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 commonPP="$myDir/common.pp"
 modulesDir="$myDir/../puppet/modules"
 manifestsDir="$myDir"
-# vmPropertiesFile="$myDir/.testvm.properties"
-# Globals End
+vmPropertiesFile="$myDir/.testvm.properties"
 
 # Functions Start
 setup_vagrantfile(){
@@ -21,20 +20,20 @@ setup_vagrantfile(){
 load_config(){
   local configFile=$1
 
-  cp $commonPP config.pp && echo "created config.pp from common.pp"
-  cat $configFile >> config.pp && echo "application config added to config.pp"
+  cp $commonPP config.pp && echo "[vinyas] Created config.pp from common.pp"
+  cat $configFile >> config.pp && echo "[vinyas] Application config added to config.pp"
 }
 
 reload_config(){
   if [ -f $vmPropertiesFile ]; then
     local configFile=`cat $vmPropertiesFile | grep configFile | cut -d":" -f2`
-    [[ -f $configFile ]] && load_config $configFile && echo "reloaded configFile{:$configFile}"
+    [[ -f $configFile ]] && load_config $configFile && echo "[vinyas] Reloaded configFile{:$configFile}"
   fi
 }
 
 save_config_file_path(){
   local configFile=$1
-  echo "configFile:$configFile" > $vmPropertiesFile && echo "saved path to configFile{:$configFile}"
+  echo "configFile:$configFile" > $vmPropertiesFile && echo "[vinyas] saved path to configFile{:$configFile}"
 }
 
 init(){
@@ -45,9 +44,10 @@ init(){
   local boxFileName=${boxFile##*/}
 
   cd $myDir
-  command vagrant box add $boxFileName $boxFile && echo "VM added"
-  command vagrant init $boxFileName && echo "Vagrantfile created"
-  setup_vagrantfile && echo "Vagrantfile setup done"
+  echo "[vinyas] Adding vagrant box named:" $boxFileName
+  command vagrant box add $boxFileName $boxFile && echo "[vinyas] VM added"
+  command vagrant init $boxFileName && echo "[vinyas] Vagrantfile created"
+  setup_vagrantfile && echo "[vinyas] Vagrantfile setup done"
 
   save_config_file_path $configFile
   load_config $configFile
@@ -59,23 +59,25 @@ clear(){
     local boxExists=`command vagrant box list | grep $boxFileName | wc -l`
     local boxDestroyed=`command vagrant status | grep default | grep "not created" | wc -l`
 
-    [[ boxDestroyed -eq 0 ]] && command vagrant destroy -f && echo "VM destroyed"
-    [[ ! boxExists -eq 0 ]] && command vagrant box remove $boxFileName && echo "VM removed"
+    [[ boxDestroyed -eq 0 ]] && command vagrant destroy -f && echo "[vinyas] VM destroyed"
+    [[ ! boxExists -eq 0 ]] && command vagrant box remove $boxFileName && echo "[vinyas] VM removed"
     
-    rm Vagrantfile && echo "Vagrantfile removed"
+    rm Vagrantfile && echo "[vinyas] Vagrantfile removed"
   fi
 
-  [[ -f config.pp ]] && rm -f config.pp && echo "config.pp removed"
-  [[ -f $vmPropertiesFile ]] && rm -f $vmPropertiesFile && echo ".testvm.properties deleted"
+  [[ -f config.pp ]] && rm -f config.pp && echo "[vinyas] config.pp removed"
+  [[ -f $vmPropertiesFile ]] && rm -f $vmPropertiesFile && echo "[vinyas] .testvm.properties deleted"
 }
 
 usage(){
   echo "**** HELP ****"
-  echo "1) Make sure you are in vagrant-vm folder"
+  echo "1) Make sure you are in vagrant-vm folder under vinyas"
   echo ""
-  echo "2) Run: <source run.sh init /path/to/image.box /path/to/configuration.pp>"
-  echo "      This creates Vagrantfile and initiates vagrant"
-  echo "      \`source\` causes vagrant command to be overridden to reload config file"
+  echo "2) Run: <sh run.sh init /path/to/image.box /path/to/configuration.pp>"
+  echo "      This creates Vagrantfile and initiates Vagrant"
+  echo "         .box is VirtualBox image file"
+  echo "         .pp defines your puppet properties file which defines values puppet configuration specific to your environment"
+  echo "         \`source\` causes vagrant command to be overridden to reload config file"
   echo ""
   echo "3) Execute vagrant up/halt/reload/package to test your changes"
   echo ""
