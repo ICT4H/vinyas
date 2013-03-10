@@ -1,34 +1,24 @@
-class tomcat ( $version, $userName, $tomcatManagerUserName = "tomcat", $tomcatManagerPassword, $tomcatInstance = "", $tomcatHttpPort = "8080", $tomcatRedirectPort = "8443", $tomcatShutdownPort = "8005", $tomcatAjpPort = "8009", $tomcatManagerRoles = "") {
+class tomcat ( $version, $userName, $tomcatManagerUserName = "tomcat", $tomcatManagerPassword, $tomcatHttpPort = "8080", $tomcatRedirectPort = "8443", $tomcatShutdownPort = "8005", $tomcatAjpPort = "8009", $tomcatInstallationDirectory) {
 
     exec {"gettomcattarfile" :
-        command     => "/usr/bin/wget -O /tmp/apache-tomcat-${version}.tar.gz http://motechrepo.github.com/pub/motech/other/apache-tomcat-${version}.tar.gz",
-        require     => [User["${userName}"]],
+        command     => "/usr/bin/wget -O /tmp/apache-tomcat-${version}.tar.gz http://archive.apache.org/dist/tomcat/tomcat-7/v${version}/bin/apache-tomcat-${version}.tar.gz",
+        user        => "${userName}",
         timeout     => 0,
         provider    => "shell",
         onlyif      => "test ! -f /tmp/apache-tomcat-${version}.tar.gz"
     }
 
-    if $tomcatInstance != "" {
-        $instanceSuffix = "-${tomcatInstance}"
-        $moveAfterExtractCommand = "mv apache-tomcat-${version} /home/${userName}/apache-tomcat-${version}${instanceSuffix}"
-    } else {
-	    $instanceSuffix = ""
-	    $moveAfterExtractCommand = ""
-    }
-
-    $tomcatInstallationDirectory = "/home/${userName}/apache-tomcat-${version}${instanceSuffix}"
-
     exec { "tomcat_untar":
-        command     => "tar xfz /tmp/apache-tomcat-${version}.tar.gz; $moveAfterExtractCommand",
+        command     => "tar -xfz /tmp/apache-tomcat-${version}.tar.gz; $moveAfterExtractCommand",
         user        => "${userName}",
-        cwd         => "/tmp/",
-        creates     => "$tomcatInstallationDirectory",
+        cwd         => "/home/${userName}",
+        creates     => "${tomcatInstallationDirectory}",
         path        => ["/bin"],
-        require     => [Exec["$userName homedir"], Exec["gettomcattarfile"]],
+        require     => Exec["gettomcattarfile"],
         provider    => "shell",
     }
 
-    file { "/etc/init.d/tomcat${$instanceSuffix}" :
+    file { "/etc/init.d/tomcat" :
         ensure      => present,
         content     => template("tomcat/tomcat.initd"),
         mode        => 777,
@@ -37,41 +27,37 @@ class tomcat ( $version, $userName, $tomcatManagerUserName = "tomcat", $tomcatMa
         require     => Exec["tomcat_untar"],
     }
 
-    file { "$tomcatInstallationDirectory/conf/server.xml" :
+    file { "${tomcatInstallationDirectory}/conf/server.xml" :
         ensure      => present,
         content     => template("tomcat/server.xml.erb"),
         group       => "${userName}",
         owner       => "${userName}",
         replace     => true,
-        require     => File["/etc/init.d/tomcat${instanceSuffix}"],
+        require     => File["/etc/init.d/tomcat"],
     }
 
-    file { "$tomcatInstallationDirectory/bin/catalina.sh" :
-            ensure      => present,
-            content     => template("tomcat/catalina.sh.erb"),
-            group       => "${userName}",
-            owner       => "${userName}",
-            mode        => 755,
-            require     => File["/etc/init.d/tomcat${instanceSuffix}"],
-    }
-
-    file { "$tomcatInstallationDirectory/conf/tomcat-users.xml" :
+    file { "${tomcatInstallationDirectory}/conf/tomcat-users.xml" :
         ensure      => present,
         content     => template("tomcat/tomcat-users.xml.erb"),
         group       => "${userName}",
         owner       => "${userName}",
-        require     => File["/etc/init.d/tomcat${instanceSuffix}"],
+        require     => File["/etc/init.d/tomcat"],
+    }
+
+    exec{ "change_tomcat_owner" :
+        command     => "chown -R ${userName}:${userName} ${tomcatInstallationDirectory}",
+        require     => [File["${tomcatInstallationDirectory}/conf/server.xml"], File["${tomcatInstallationDirectory}/conf/tomcat-users.xml"]]
     }
 
     exec { "installtomcatservice" :
         provider    => "shell",
         user        => "root",
-        command     => "/sbin/chkconfig --add tomcat${instanceSuffix}",
-        require     => File["/etc/init.d/tomcat${instanceSuffix}"],
-        onlyif      => "chkconfig --list tomcat${instanceSuffix}; [ $? -eq 1 ]"
+        command     => "/sbin/chkconfig --add tomcat",
+        require     => Exec["change_tomcat_owner"],
+        onlyif      => "chkconfig --list tomcat; [ $? -eq 1 ]"
     }
 
-    service { "tomcat${instanceSuffix}" :
+    service { "tomcat" :
         ensure      => running,
         enable      => true,
         hasstatus   => false,

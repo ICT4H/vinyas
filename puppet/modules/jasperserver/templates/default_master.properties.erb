@@ -66,10 +66,12 @@ dbHost=<%=jasperDbHost%>
 dbUsername=<%=jasperDbUsername%>
 dbPassword=<%=jasperDbPassword%>
 
+
+
 # additional database parameters
 # (uncomment these if you want non-default settings)
 
-# dbPort=5432
+# dbPort=3306
 
 # JasperServer db name, sample db names
 js.dbName=<%=jasperDbName%>
@@ -81,12 +83,18 @@ js.dbName=<%=jasperDbName%>
 # webAppNameCE = jasperserver
 # webAppNamePro = jasperserver-pro
 
+#
 # JDBC driver
-# (uncomment to change to a non-default setting)
+#   A JDBC driver should be placed in the following location in order
+#   to be found by the buildomatic logic at execution time:
 #
-# driver will be found here: <path>/buildomatic/conf_source/db/postgresql/jdbc
+#   <path>/buildomatic/conf_source/db/mysql/jdbc
 #
-# maven.jdbc.groupId=postgresql
-# maven.jdbc.artifactId=postgresql
-# maven.jdbc.version=9.0-801.jdbc3
 
+# JDBC driver version
+# (uncomment to change to a target mysql setting. Also,make sure that your jdbc driver is named as
+# "{mysql-connector-java}-{maven.jdbc.version}.jar". It will required for Jboss7, because it uses this setting during
+# deployment process.)
+#
+# maven.jdbc.artifactId=mysql-connector-java
+# maven.jdbc.version=5.1.17
