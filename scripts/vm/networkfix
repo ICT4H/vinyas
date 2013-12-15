@@ -1,0 +1,3 @@
+cd /etc/sysconfig/network-scripts/
+wget https://raw.github.com/Bhamni/bahmni-environment/master/samples/virtualbox-vargant/ifcfg-eth1
+wget https://raw.github.com/Bhamni/bahmni-environment/master/samples/virtualbox-vargant/ifcfg-eth2

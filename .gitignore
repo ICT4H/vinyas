@@ -4,3 +4,4 @@
 *.xcworkspace
 virtualboximages
 *sublime*
+.vagrant/*

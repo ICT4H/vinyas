@@ -8,7 +8,7 @@ class phantom-jasmine{
     exec { "phantomjs-archive-extract":
                 command     => "tar --use-compress-program bzip2 -xvf /usr/local/phantomjs.tar.bz2",
                 path        => ["/usr/local"],
-                user        => "${jssUser}",
+                user        => "${bahmni_user}",
                 require     => Exec["phantomjs-download-archive"],
     }
 
@@ -24,22 +24,22 @@ class phantom-jasmine{
     }
 
     exec{"node-download-archive":
-                command     => "/usr/bin/wget -O /tmp/nodejs.rpm http://nodejs.tchol.org/repocfg/el/nodejs-stable-release.noarch.rpm",
+                command     =>"/usr/bin/wget -O /tmp/nodejs.rpm http://nodejs.tchol.org/repocfg/el/nodejs-stable-release.noarch.rpm",
                 timeout     => 0,
                 provider    => "shell",
-                require     => Exec["phantomjs-add-to-path"]
+                require     =>Exec["phantomjs-add-to-path"]
     }
 
     exec{"node-install":
-                command     => "yum localinstall --nogpgcheck /tmp/nodejs.rpm",
+                command     =>"yum localinstall --nogpgcheck /tmp/nodejs.rpm",
                 provider    => "shell",
-                require     => Exec["node-download-archive"]
+                require     =>Exec["node-download-archive"]
     }
 
    exec{"npm-install":
-                command     => "yum install nodejs-compat-symlinks npm",
+                command     =>"yum install nodejs-compat-symlinks npm",
                 provider    => "shell",
-                require     => Exec["node-install"]
+                require     =>Exec["node-install"]
     }
 
     file{"rpm-stable-release-delete":
@@ -49,8 +49,8 @@ class phantom-jasmine{
     }
 
    exec{"phantom-jasmine-install":
-                command     => "sudo npm install phantom-jasmine -g",
+                command     =>"sudo npm install phantom-jasmine -g",
                 provider    => "shell",
-                require     => File["rpm-stable-release-delete"]
+                require     =>Exec["rpm-stable-release-delete"]
     }
 }

@@ -1,95 +1,95 @@
-class jasperserver ($userName) {
+class jasperserver {
+  $log_file = "${logs_dir}/jasperserver-module.log"
+  $log_expression = ">> ${log_file} 2>> ${log_file}"
+  $default_master_properties = "${jasperHome}/buildomatic/default_master.properties"
+  $do_js_setup_script = "${jasperHome}/buildomatic/bin/do-js-setup.sh"
 
-    exec {"get_jasperserver":
-        command     => "/usr/bin/wget -O /tmp/jasperreports-server-cp-5.0.0-bin.zip https://dl.dropbox.com/s/1p0jtt1hjfnrkp6/jasperreports-server-cp-5.0.0-bin.zip",
-        timeout     => 0,
-        provider    => "shell",
-        user        => "${jssUser}",
-        onlyif      => "test ! -f /tmp/jasperreports-server-cp-5.0.0-bin.zip"
-    }
+  file { "${log_file}" :
+    ensure        => absent,
+    purge         => true
+  }
 
-	file { "${jasperHome}":
-            ensure      => "directory",
-            purge       => true,
-            owner       => "${jssUser}",
-            group       => "${jssUser}"
-    }
+  # Mujir - recursively doing this through file resource eats up time. Hence the exec below.\
+  file { "${jasperHome}" :
+    mode        => 774,
+    ensure      => directory,
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    loglevel    => "warning",
+  }
+  exec { "change_group_rights_for_jasperHome" :
+    provider => "shell",
+    command => "chown -R ${bahmni_user}:${bahmni_user} ${jasperHome}; chmod -R 774 ${jasperHome}; ",
+    path => "${os_path}",
+    require => File["${jasperHome}"],
+  }
 
-    exec { "unzip_jasperserver":
-        command     => "unzip /tmp/jasperreports-server-cp-5.0.0-bin.zip && cp -r /tmp/jasperreports-server-cp-5.0.0-bin ./ && rm -rf /tmp/jasperreports-server-cp-5.0.0-bin",
-        provider    => "shell",
-        require     => [File["${jasperHome}"], Exec["get_jasperserver"]],
-    }
 
-    exec {"copy_mysql_jar" :
-       command      => "cp /usr/share/java/mysql-connector-java.jar ${jasperHome}/buildomatic/conf_source/db/mysql/jdbc",
-       require      => Exec["unzip_jasperserver"]
-    }
+  exec { "extracted_jasperserver" :
+    command     => "unzip -q -n ${packages_servers_dir}/jasperreports-server-cp-5.0.0-bin.zip -d ${jasperHome}/.. ${log_expression}",
+    provider    => shell,
+    user        => "${bahmni_user}",
+    path        => "${os_path}",
+    require     => [File["${jasperHome}"], File["${log_file}"]],
+    loglevel    => "warning"
+  }
 
-    exec{ "change_jasperserver_owner" :
-            command     => "chown -R ${userName}:${userName} ${jasperHome}",
-            require     => Exec["unzip_jasperserver"],
-    }
+  # exec { "jasperserver_scripts_permission" :
+  #   command     => "find . -name '*.sh' | xargs chmod u+x ${log_expression}",
+  #   user        => "${bahmni_user}",
+  #   require     => [Exec["extracted_jasperserver"], File["${do_js_setup_script}"]],
+  #   cwd         => "${jasperHome}",
+  #   path        => "${os_path}"
+  # } 
 
-	file { "java_home_path":
-        path 		=> "/etc/profile.d/java.sh",
-        ensure 		=> "present",
-        content 	=> template ("jasperserver/java.sh"),
-        mode 		=> '644',
-	}
+  exec {"jasper_mysql_connector" :
+    command      => "cp ${packages_servers_dir}/mysql-connector-java-${mysql_connector_java_version}.jar ${jasperHome}/buildomatic/conf_source/db/mysql/jdbc",
+    path        => "${os_path}",
+    user        => "${bahmni_user}",
+    require     => Exec["extracted_jasperserver"]
+  }
 
-    file { "${jasperHome}/buildomatic/default_master.properties":
-        content     => template("jasperserver/default_master.properties.erb"),
-        require     => Exec['change_jasperserver_owner'],
-        owner       => "${jssUser}",
-        group       => "${jssUser}"
-    }
+  exec {"jasper_postgresql_connector" :
+    command      => "cp ${packages_servers_dir}/${postgresql_jdbc_connector_jar_file} ${jasperTomcatHome}/lib/ ${log_expression}",
+    path        => "${os_path}",
+    user        => "${bahmni_user}",
+    require     => Exec["extracted_jasperserver"]
+  }
 
-    file { "${jasperHome}/buildomatic/bin/do-js-setup.sh":
-        content     => template("jasperserver/do-js-setup.sh"),
-        require     => Exec['change_jasperserver_owner'],
-        owner       => "${jssUser}",
-        group       => "${jssUser}"
-    }
+  file { "${default_master_properties}" :
+    content     => template("jasperserver/default_master.properties.erb"),
+    owner       => "${bahmni_user}",
+    mode        => 554,
+    require     => Exec["extracted_jasperserver"]
+  }
 
-    exec { "set_jasperserver_scripts_permission":
-        command     => "find . -name '*.sh' | xargs chmod u+x",
-        user        => "${jssUser}",
-        require     => [File["${jasperHome}/buildomatic/bin/do-js-setup.sh"], File["${jasperHome}/buildomatic/default_master.properties"]],
-        cwd         => "${jasperHome}"
-    }
-	
-    exec { "set_jasperserver_ant_permission":
-        command     => "chmod u+x ${jasperHome}/apache-ant/bin/ant",
-        user        => "${jssUser}",
-        require     => [File["${jasperHome}/buildomatic/bin/do-js-setup.sh"], File["${jasperHome}/buildomatic/default_master.properties"]],
-        cwd         => "${jasperHome}"
-    }
+  file { "${do_js_setup_script}" :
+    content     => template("jasperserver/do-js-setup.sh"),
+    mode        => 554,
+    owner       => "${bahmni_user}",
+    require     => Exec["extracted_jasperserver"]
+  }
 
-    exec { "make_jasperserver":
-        command     => "echo '$jasperResetDb' | /bin/sh js-install-ce.sh minimal",
-        require     => [Exec["set_jasperserver_scripts_permission"],File["java_home_path"], Exec["copy_mysql_jar"],Exec["set_jasperserver_ant_permission"]],
-        cwd         => "${jasperHome}/buildomatic",
-        user        => "${jssUser}"
-    }
+  exec { "make_jasperserver" :
+    command     => "echo y | sh js-install-ce.sh minimal > ${logs_dir}/jasper-install.log &2>1",
+    cwd         => "${jasperHome}/buildomatic",
+    user        => "${bahmni_user}",
+    path        => "${os_path}",
+    provider    => "shell",
+    require     => [Exec["extracted_jasperserver"], File["${do_js_setup_script}"], File["${default_master_properties}"], Exec["jasper_mysql_connector"], Exec["jasper_postgresql_connector"]]
+  }
 
-    file { "/tmp/configure_jasper_home.sh" :
-         require    => Exec["make_jasperserver"],
-         content    => template("jasperserver/configure_jasper_home.sh"),
-         owner      => "${jssUser}",
-         group      => "${jssUser}",
-         mode       =>  764
-    }
+  file { "${temp_dir}/configure_jasper_home.sh" :
+    content    => template("jasperserver/configure_jasper_home.sh"),
+    owner      => "${bahmni_user}",
+    mode       => 554
+  }
 
-    exec { "config-jasper-home" :
-        require     => File["/tmp/configure_jasper_home.sh"],
-        command     => "sh /tmp/configure_jasper_home.sh ${jasperHome} ${jssUser}",
-        user        => "${jssUser}"
-    }
-	
-	exec {"restart_tomcat" :
-        command     => "/home/${jssUser}/apache-tomcat-7.0.22/bin/shutdown.sh && /home/jss/apache-tomcat-7.0.22/bin/startup.sh",
-        user        => "${jssUser}",
-        require		=> Exec["make_jasperserver"],
-	}
+  exec { "config_jasper_home" :
+    command     => "sh ${temp_dir}/configure_jasper_home.sh ${jasperHome} ${bahmni_user} > ${logs_dir}/configure-jasper-home.log 2>&1",
+    user        => "${bahmni_user}",
+    path        => "${os_path}",
+    require     => File["${temp_dir}/configure_jasper_home.sh"],
+    provider    => shell
+  }
 }

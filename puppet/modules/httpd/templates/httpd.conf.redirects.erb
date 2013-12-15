@@ -2,39 +2,35 @@
 <VirtualHost *:80>
 <% if @sslEnabled == true -%>
 	RewriteEngine On
-    RewriteCond %{HTTPS} off
-<% if @sslExcludeList!=nil and @sslExcludeList.length > 0 -%>
-	RewriteCond %{REMOTE_HOST} !(<%= @sslExcludeList.join("|") %>)
-<% end -%>
-    <% if @dropPacketsIfIPNotInSslExcludeList == true -%>
-	    RewriteRule (.*) [F]
-    <% else -%>
-        RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}
-    <% end -%>
+  RewriteCond %{HTTPS} off
+	<% if @sslExcludeList!=nil and @sslExcludeList.length > 0 -%>
+		RewriteCond %{REMOTE_HOST} !(<%= @sslExcludeList.join("|") %>)
+	<% end -%>
+	<% if @httpRedirects!=nil and @httpRedirects.length > 0 -%>
+		<%- @httpRedirects.each do |redirectionRule| -%>
+				<%- pathToIgonre =  redirectionRule.is_a?(Array) ? redirectionRule[0]["path"] : redirectionRule["path"]  -%>
+				RewriteCond %{REQUEST_URI} !(^<%=pathToIgonre%>)
+		<% end -%>
+	<% end -%>
+
+	
+  <% if @dropPacketsIfIPNotInSslExcludeList == true -%>
+   	RewriteRule (.*) [F]
+  <% else -%>
+    RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}
+  <% end -%>
 <% end -%>
 
 <% if @httpRedirects!=nil and @httpRedirects.length > 0 -%>
-<%- @httpRedirects.each do |redirectionRule| -%>
-	<%- if redirectionRule.is_a?(Array) -%>
-        ProxyPass <%= redirectionRule[0] %>
-        ProxyPassReverse <%= redirectionRule[1] %>
-    <%- else -%>
-        ProxyPass <%= redirectionRule %>
-        ProxyPassReverse <%= redirectionRule %>
-    <%- end -%>
-<% end -%>
+	<%- @httpRedirects.each do |redirectionRule| -%>
+			<%- if redirectionRule.is_a?(Array) -%>
+	        ProxyPass <%=redirectionRule[0]["path"]%> <%=redirectionRule[0]["redirectPath"]%>
+	        ProxyPassReverse <%=redirectionRule[1]["path"]%> <%=redirectionRule[1]["redirectPath"]%>
+	    <%- else -%>
+	        ProxyPass <%=redirectionRule["path"]%> <%=redirectionRule["redirectPath"]%>
+	        ProxyPassReverse <%=redirectionRule["path"]%> <%=redirectionRule["redirectPath"]%>
+	    <%- end -%>
+	<% end -%>
 <% end -%>
 </VirtualHost>
-
-# Virtual host for couchdb clustering
-<% if @couchdbClusteringEnabled == true -%>
-Listen 8181
-<VirtualHost *:<%= @couchdbClusterPort %>>
-	ProxyPass / balancer://hotcluster/
-	<Proxy balancer://hotcluster>
-		BalancerMember http://<%= @couchdbPrimaryIp %>:5984
-		BalancerMember http://<%= @couchdbSecondaryIp %>:5984 status=+H
-	</Proxy>
-</VirtualHost>
-<% end -%>
 

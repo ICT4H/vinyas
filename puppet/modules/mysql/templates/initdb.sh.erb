@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e -x
+
+service mysql stop
+sh mysqld_safe --init-file=/tmp/changepassword.sql &
+
+# Assuming that mysql will start within the given time. Possible failure point
+sleep 10
+
+mysqladmin -uroot -p$1 shutdown
+service mysql start
+rm -f /root/.mysql_secret
+rm -f /tmp/changepassword.sql

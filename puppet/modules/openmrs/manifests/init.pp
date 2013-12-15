@@ -1,66 +1,96 @@
-class openmrs ( $tomcatInstallationDirectory, $openmrsDbBackupLocation = "/tmp/openmrsDB" ) {
-    exec {"download-openmrs-war" :
-            command     => "/usr/bin/wget -O ${tomcatInstallationDirectory}/webapps/openmrs.war http://sourceforge.net/projects/openmrs/files/releases/OpenMRS_1.9.2/openmrs.war",
-            timeout     => 0,
-            provider    => "shell",
-			user        => "${jssUser}",
-            onlyif      => "test -d ${tomcatInstallationDirectory}"
-        }
+class openmrs {
+  require bahmni-distro
+  
+  $log4j_xml_file = "${tomcatInstallationDirectory}/webapps/openmrs/WEB-INF/classes/log4j.xml"
+  $openmrs_webapp_location =  "${tomcatInstallationDirectory}/webapps/openmrs"
+  $web_xml_file = "${openmrs_webapp_location}/WEB-INF/web.xml"
 
-    file { "ensure_openmrsdb_directory" :
-            ensure  => "directory",
-            path    => "${openmrsDbBackupLocation}",
-            purge   => true,
-            recurse => true,
-            require => Exec["download-openmrs-war"]
-         }
+  file { "${openmrs_webapp_location}" :
+    ensure    => directory,
+    recurse   => true,
+    force     => true,
+    purge     => true,
+    owner => "${bahmni_user}",
+    group => "${bahmni_user}",
+  }
 
-    file { "delete_openmrs_dir":
-            ensure  => absent,
-            path    => "/home/${jssUser}/.OpenMRS",
-            force   => true,
-	     }
+  file { "/home/${bahmni_user}/.OpenMRS/openmrs-runtime.properties" :
+    ensure      => present,
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    mode        => 664,
+    content     => template("openmrs/openmrs-runtime.properties"),
+    require     => File["/home/${bahmni_user}/.OpenMRS"]
+  }
 
-    exec {"download-openmrs-database-backup" :
-            command     => "/usr/bin/wget -O ${openmrsDbBackupLocation}/openmrs.sql.zip https://dl.dropbox.com/s/ne6ph52js2gx3n9/openmrs_withconcepts.sql.zip?dl=1",
-            timeout     => 0,
-            provider    => "shell",
-			user        => "${jssUser}",
-            require     => File["ensure_openmrsdb_directory"]
-         }
+  exec { "latest_openmrs_webapp" :
+    command   => "unzip -o -q ${build_output_dir}/${openmrs_distro_file_name_prefix}/${openmrs_war_file_name}.war -d ${tomcatInstallationDirectory}/webapps/openmrs ${deployment_log_expression}",
+    provider  => shell,
+    path      => "${os_path}",
+    require   => [File["${deployment_log_file}"], File["${openmrs_webapp_location}"]],
+    user      => "${bahmni_user}"
+  }
 
-    exec { "openmrs_db_backup_unzip":
-            command     => "unzip ${openmrsDbBackupLocation}/openmrs.sql.zip -d $openmrsDbBackupLocation",
-            path        => ["/usr/bin"],
-			user        => "${jssUser}",
-            require     => Exec["download-openmrs-database-backup"],
-        }
+  file { "/home/${bahmni_user}/.OpenMRS" :
+    ensure      => directory,
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    mode        => 666
+  }
 
-    exec { "openmrs_update_db":
-            command     => "mysql -uroot -p${mysqlRootPassword} openmrs < ${openmrsDbBackupLocation}/openmrs.sql",
-            path        => ["/usr/bin"],
-			user        => "${jssUser}",
-			timeout     => 0,
-            require     => Exec["openmrs_db_backup_unzip"],
-        }
+  file { "${log4j_xml_file}" :
+    ensure      => present,
+    content     => template("openmrs/log4j.xml.erb"),
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    require     => Exec["latest_openmrs_webapp"],
+    mode        => 664,
+  }
 
-    exec { "get_openMRS_folder" :
-            command     => "/usr/bin/wget -O /home/${jssUser}/.OpenMRS.zip https://dl.dropbox.com/s/wd1900mwue3nu8n/.OpenMRS.zip?dl=1",
-            timeout     => 0,
-			user        => "${jssUser}",
-            provider    => "shell",
-         }
+  file { "${web_xml_file}" :
+    ensure      => present,
+    content     => template("openmrs/web.xml"),
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    require     => Exec["latest_openmrs_webapp"],
+    mode        => 664
+  }
 
-    exec { "openMRS_folder_unzip":
-            command     => "unzip /home/${jssUser}/.OpenMRS.zip -d /home/${jssUser}",
-            path        => ["/usr/bin"],
-			user        => "${jssUser}",
-            require     => [Exec["get_openMRS_folder"], File["delete_openmrs_dir"]],
-         }
+  file { "${temp_dir}/create-openmrs-db-and-user.sql" :
+    ensure      => present,
+    content     => template("openmrs/database.sql"),
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}"
+  }
 
-    exec { "change_openMRS_folder_ownership" :
-             command     => "/bin/chown -R ${jssUser}:${jssUser} /home/${jssUser}/.OpenMRS",
-             require     => Exec["openMRS_folder_unzip"],
-         }
+  exec { "openmrs_database" :
+    command     => "mysql -uroot -p${mysqlRootPassword} < ${temp_dir}/create-openmrs-db-and-user.sql ${deployment_log_expression}",
+    path        => "${os_path}",
+    provider    => shell,
+    require     => File["${temp_dir}/create-openmrs-db-and-user.sql"]
+  }
+
+  file { "${temp_dir}/run-liquibase.sh" :
+    ensure      => present,
+    content     => template("openmrs/run-liquibase.sh"),
+    owner       => "${bahmni_user}",
+    group       => "${bahmni_user}",
+    mode        => 554
+  }
+
+  exec { "openmrs_data" :
+    command     => "${temp_dir}/run-liquibase.sh ${build_output_dir}/${openmrs_distro_file_name_prefix} ${deployment_log_expression}",
+    path        => "${os_path}",
+    provider    => shell,
+    cwd         => "${tomcatInstallationDirectory}/webapps",
+    require     => [Exec["openmrs_database"], File["${temp_dir}/run-liquibase.sh"], Exec["latest_openmrs_webapp"]]
+  }
+
+   exec { "bahmni_java_utils_jars" :
+    command => "cp ${build_output_dir}/${openmrs_distro_file_name_prefix}/mail-appender-${bahmni_openmrs_version}.jar ${tomcatInstallationDirectory}/webapps/openmrs/WEB-INF/lib ${deployment_log_expression}",
+    user    => "${bahmni_user}",
+    require => Exec["latest_openmrs_webapp"],
+    path => "${os_path}"
+  }
 
 }

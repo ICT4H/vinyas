@@ -1,66 +1,76 @@
-class tomcat ( $version, $userName, $tomcatManagerUserName = "tomcat", $tomcatManagerPassword, $tomcatHttpPort = "8080", $tomcatRedirectPort = "8443", $tomcatShutdownPort = "8005", $tomcatAjpPort = "8009", $tomcatInstallationDirectory) {
+class tomcat {
+  require host
+  require java
 
-    exec {"gettomcattarfile" :
-        command     => "/usr/bin/wget -O /tmp/apache-tomcat-${version}.tar.gz http://archive.apache.org/dist/tomcat/tomcat-7/v${version}/bin/apache-tomcat-${version}.tar.gz",
-        user        => "${userName}",
-        timeout     => 0,
-        provider    => "shell",
-        onlyif      => "test ! -f /tmp/apache-tomcat-${version}.tar.gz"
-    }
+  exec { "tomcat_untar" :
+    command   => "tar -zxf ${packages_servers_dir}/apache-tomcat-${tomcat_version}.tar.gz ${deployment_log_expression} -C ${tomcatParentDirectory}",
+    user      => "${bahmni_user}",
+    creates   => "${tomcatInstallationDirectory}",
+    provider  => shell
+  }
 
-    exec { "tomcat_untar":
-        command     => "tar -xfz /tmp/apache-tomcat-${version}.tar.gz; $moveAfterExtractCommand",
-        user        => "${userName}",
-        cwd         => "/home/${userName}",
-        creates     => "${tomcatInstallationDirectory}",
-        path        => ["/bin"],
-        require     => Exec["gettomcattarfile"],
-        provider    => "shell",
-    }
+  file { "CATALINA_OPTS" :
+    path    => "${tomcatInstallationDirectory}/bin/setenv.sh",
+    ensure  => present,
+    content => template ("tomcat/setenv.sh"),
+    owner   => "${bahmni_user}",
+    mode    => 664,
+    require => Exec["tomcat_untar"]
+  }
 
-    file { "/etc/init.d/tomcat" :
-        ensure      => present,
-        content     => template("tomcat/tomcat.initd"),
-        mode        => 777,
-        group       => "root",
-        owner       => "root",
-        require     => Exec["tomcat_untar"],
-    }
+  file { "/etc/init.d/tomcat" :
+      ensure      => present,
+      content     => template("tomcat/tomcat.initd.erb"),
+      mode        => 777,
+      group       => "root",
+      owner       => "root",
+      require     => Exec["tomcat_untar"],
+  }
 
-    file { "${tomcatInstallationDirectory}/conf/server.xml" :
-        ensure      => present,
-        content     => template("tomcat/server.xml.erb"),
-        group       => "${userName}",
-        owner       => "${userName}",
-        replace     => true,
-        require     => File["/etc/init.d/tomcat"],
-    }
+  file { "${tomcatInstallationDirectory}/conf/server.xml" :
+    ensure    => present,
+    content   => template("tomcat/server.xml.erb"),
+    owner     => "${bahmni_user}",
+    replace   => true,
+    mode      => 664,
+    require   => Exec["tomcat_untar"]
+  }
 
-    file { "${tomcatInstallationDirectory}/conf/tomcat-users.xml" :
-        ensure      => present,
-        content     => template("tomcat/tomcat-users.xml.erb"),
-        group       => "${userName}",
-        owner       => "${userName}",
-        require     => File["/etc/init.d/tomcat"],
-    }
+  file { "${tomcatInstallationDirectory}/conf/web.xml" :
+    ensure      => present,
+    content     => template("tomcat/web.xml.erb"),
+    group       => "${bahmni_user}",
+    owner       => "${bahmni_user}",
+    replace     => true,
+    require     => Exec["tomcat_untar"],
+  }
 
-    exec{ "change_tomcat_owner" :
-        command     => "chown -R ${userName}:${userName} ${tomcatInstallationDirectory}",
-        require     => [File["${tomcatInstallationDirectory}/conf/server.xml"], File["${tomcatInstallationDirectory}/conf/tomcat-users.xml"]]
-    }
+  file { "${tomcatInstallationDirectory}/conf/tomcat-users.xml" :
+    ensure    => present,
+    content   => template("tomcat/tomcat-users.xml.erb"),
+    owner     => "${bahmni_user}",
+    mode      => 664,
+    require   => Exec["tomcat_untar"]
+  }
 
-    exec { "installtomcatservice" :
-        provider    => "shell",
-        user        => "root",
-        command     => "/sbin/chkconfig --add tomcat",
-        require     => Exec["change_tomcat_owner"],
-        onlyif      => "chkconfig --list tomcat; [ $? -eq 1 ]"
-    }
+  # Mujir - recursively doing this through file resource eats up time. Hence the exec below.
+  file { "${tomcatInstallationDirectory}" :
+    ensure => directory,
+    mode   => 776,
+    owner  => "${bahmni_user}",
+    group  => "${bahmni_user}",
+    require => Exec["tomcat_untar"]
+  }
+  exec { "change_group_rights_for_tomcatInstallationDirectory" :
+    provider => "shell",
+    command => "chown -R ${bahmni_user}:${bahmni_user} ${tomcatInstallationDirectory}; chmod -R 776 ${tomcatInstallationDirectory}; ",
+    path => "${os_path}",
+    require => File["${tomcatInstallationDirectory}"],
+  }
 
-    service { "tomcat" :
-        ensure      => running,
-        enable      => true,
-        hasstatus   => false,
-        require     => Exec["installtomcatservice"],
-    }
+  service { "tomcat":
+    enable    => true,
+    ensure => running,
+    require   => File["${tomcatInstallationDirectory}"],
+  }  
 }

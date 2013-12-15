@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/">
+
+    <appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern"
+                   value="%p - %C{1}.%M(%L) |%d{ISO8601}| %m%n" />
+        </layout>
+    </appender>
+
+    <appender name="MEMORY_APPENDER" class="org.openmrs.util.MemoryAppender">
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern"
+                   value="%p - %C{1}.%M(%L) |%d{ISO8601}| %m%n" />
+        </layout>
+    </appender>
+
+    <appender name="OPENERP_APPENDER" class="org.apache.log4j.FileAppender">
+        <param name="File" value="<%= tomcatInstallationDirectory %>/logs/openmrs-openerp-integration.log" />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern"
+                   value="%p - %C{1}.%M(%L) |%d{ISO8601}| %m%n" />
+        </layout>
+    </appender>
+
+    <appender name="EMAIL"  class="org.bahmni.util.EmailAppender">
+        <param name="BufferSize" value="512" />
+        <param name="SMTPHost" value="gmail-smtp-in.l.google.com" />
+        <param name="From" value="jss.bahmni@gmail.com" />
+        <param name="To" value="bahmni-jss-support@googlegroups.com" />
+        <param name="Subject" value="OpenMRS Error : " />
+        <layout class="org.apache.log4j.PatternLayout">
+            <param name="ConversionPattern"
+                value="[%t] - %d %p [%c] - %m%n" />
+        </layout>
+        <filter class="org.apache.log4j.varia.LevelRangeFilter">
+            <param name="LevelMin" value="ERROR"/>
+            <param name="LevelMax" value="FATAL"/>
+        </filter>
+    </appender>
+
+    <appender name="asyncSMTPAppender" class="org.apache.log4j.AsyncAppender">
+        <appender-ref ref="EMAIL"/>
+        <param name="BufferSize" value="512" />
+        <param name="Blocking" value="false" />
+    </appender>
+
+    <logger name="org.apache">
+        <level value="WARN" />
+    </logger>
+
+    <logger name="org.hibernate">
+        <level value="ERROR" />
+    </logger>
+
+    <logger name="net.sf.ehcache">
+        <level value="ERROR" />
+    </logger>
+
+    <logger name="org.springframework">
+        <level value="WARN" />
+    </logger>
+
+    <logger name="org.openmrs">
+        <level value="WARN" />
+    </logger>
+
+    <!--
+         This controls the LoggingAdvice class that wraps around the OpenMRS services
+         WARN == don't log anything special for the services
+         INFO == log all setters
+         DEBUG == log all setters & log all getters & log execution time
+     -->
+    <logger name="org.openmrs.api">
+        <level value="WARN" />
+    </logger>
+
+    <logger name="org.apache.fop">
+        <level value="ERROR" />
+    </logger>
+
+    <!-- Hide the useless MissingResourceException -->
+    <logger name="org.springframework.context.support.ResourceBundleMessageSource">
+        <level value="ERROR" />
+    </logger>
+
+    <logger name="org.bahmni.openerp.web.service">
+        <level value="ERROR" />
+        <appender-ref ref="OPENERP_APPENDER" />
+    </logger>
+
+    <root>
+        <level value="WARN" />
+        <appender-ref ref="CONSOLE" />
+        <% if @add_email_appender == true -%>
+          <appender-ref ref="asyncSMTPAppender" />
+        <% end -%>
+        <appender-ref ref="MEMORY_APPENDER" />
+    </root>
+</log4j:configuration>
