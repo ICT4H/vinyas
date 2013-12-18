@@ -9,6 +9,10 @@ Vagrant.configure("2") do |config|
   config.vm.network :public_network
   config.ssh.username = "root"
 
+  config.vm.provider "virtualbox" do |v|
+    v.customize ["modifyvm", :id, "--memory", 1024, "--cpus", 2, "--name", "peers"]
+  end
+
   if ENV['STAGE'] == nil
     manifest_file = "do-nothing.pp"
   else

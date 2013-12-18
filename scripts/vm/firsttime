@@ -5,4 +5,4 @@ mv vagrant.pub authorized_keys
 
 rm -f /etc/sysconfig/network-scripts/ifcfg-eth1
 rm -f /etc/sysconfig/network-scripts/ifcfg-eth2
-sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/udev/rules.d/70-persistent-net.rules
+#sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/udev/rules.d/70-persistent-net.rules

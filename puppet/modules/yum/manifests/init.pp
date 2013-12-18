@@ -6,6 +6,6 @@ class yum {
   exec { "yum-uptodate" :
     command  => "yum -y update",
     provider => "shell",
-    require => Exec["yum"]
+    require => Package["yum"],
   }
 }
